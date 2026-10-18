@@ -70,7 +70,7 @@ importers:
         specifier: ^0.80.3
         version: 0.80.3(@lezer/common@1.5.3)(@lezer/highlight@1.2.5)(@shikijs/types@4.5.0)(@types/hast@3.0.5)(@types/react@19.3.0)(date-fns@4.4.0)(prosemirror-model@1.25.12)(prosemirror-state@1.4.4)(prosemirror-transform@1.12.2)(prosemirror-view@1.42.6)(react-dom@19.3.1)(react@19.3.1)(supports-color@7.2.0)(typescript@6.0.3)
       '@ocavue/utils':
-        specifier: ^1.0.0
+        specifier: ^1.9.0
         version: 1.9.0
       '@post-embed/schema':
         specifier: ^0.5.2
@@ -142,7 +142,7 @@ importers:
         specifier: ^8.6.0
         version: 8.6.0(react@19.3.1)
       lucide-react:
-        specifier: ^1.0.0
+        specifier: ^1.8.0
         version: 1.57.0(@types/react@19.3.0)(react@19.3.1)
       pretty-ms:
         specifier: ^10.0.0
@@ -212,7 +212,7 @@ importers:
         specifier: ^1.64.1
         version: 1.64.1
       shadcn:
-        specifier: ^4.3.0
+        specifier: ^4.3.1
         version: 4.21.1(supports-color@7.2.0)(typescript@6.0.3)
       tailwindcss:
         specifier: ^4.3.3
@@ -260,10 +260,10 @@ importers:
         specifier: workspace:*
         version: link:../../design-system
       defuddle:
-        specifier: ^0.19.4
-        version: 0.19.4
+        specifier: ^0.19.5
+        version: 0.19.5
       lucide-react:
-        specifier: ^1.0.0
+        specifier: ^1.8.0
         version: 1.57.0(@types/react@19.3.0)(react@19.3.1)
       react:
         specifier: ^19.3.1
@@ -3422,8 +3422,8 @@ packages:
   defu@6.1.7:
     resolution: {integrity: sha512-7z22QmUWiQ/2d0KkdYmANbRUVABpZ9SNYyH5vx6PZ+nE5bcC0l7uFvEfHlyld/HcGBFTL536ClDt3DEcSlEJAQ==}
 
-  defuddle@0.19.4:
-    resolution: {integrity: sha512-Jz98aWlyEeuWcg9u2AavCEKknviI9GijMkrGFPk0wi1Lkfr1DDDw6XM+ak44Ol8kBDmDJsvU9Su2eUY09Fvh3Q==}
+  defuddle@0.19.5:
+    resolution: {integrity: sha512-WpgFv5TWA8s8bWRXMb+tosdEbdeZwgrKYw+BQiuTQfQc4XdCm69Yq/76Lzgvr0ALC1VxZcMWwjNGGgIstcxUtw==}
     hasBin: true
 
   depd@2.0.0:
@@ -9603,7 +9603,7 @@ snapshots:
 
   defu@6.1.7: {}
 
-  defuddle@0.19.4:
+  defuddle@0.19.5:
     dependencies:
       commander: 12.1.0
       mathml-to-latex: 1.8.0
