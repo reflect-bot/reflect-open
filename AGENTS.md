@@ -147,7 +147,7 @@ reflect-open/
 │   │   │   ├── icons/                   # App icons for desktop/mobile bundles
 │   │   │   ├── gen/                     # Generated schemas + platform projects (no hand-edits)
 │   │   │   └── ios.project.yml          # iOS XcodeGen template
-│   │   ├── scripts/        # build-sidecar.ts (stages the sidecars), release-*.ts
+│   │   ├── scripts/        # build-*.ts (sidecars, release builds), upload-testflight.ts
 │   │   ├── dist/           # Vite build output (frontendDist in tauri.conf.json)
 │   │   └── public/         # Static assets served by Vite
 │   ├── cli/                # `reflect` — self-contained Rust read/discovery CLI (see docs/cli.md)
@@ -241,9 +241,9 @@ pnpm tauri dev        # Full Tauri app with hot reload (stages the CLI sidecar f
 pnpm tauri:dev        # `pnpm tauri dev` with the dev overlay → the "Reflect Dev" flavor (green icon, own identifier; coexists with Reflect / Reflect Beta)
 pnpm build            # turbo build pipeline → apps/desktop/dist/
 pnpm tauri build      # Native app bundle, incl. the reflect CLI sidecar
-pnpm release:macos    # Signed + notarized macOS build for distribution (docs/macos-distribution.md)
+pnpm build:macos      # Signed + notarized macOS build for distribution (docs/macos-distribution.md)
 pnpm tauri:ios:dev "iPhone 17 Pro"  # Run the Tauri iOS target in the simulator (docs/contributing/mobile-simulator.md)
-pnpm release:ios --build-number=123  # Build, check, and upload the iOS app to TestFlight
+pnpm build:ios --build-number=123   # Build and check the iOS app; `pnpm upload:testflight` uploads it
 ```
 
 **iOS simulator**
@@ -261,9 +261,9 @@ normalize generated project and plist files.
 
 **iOS TestFlight**
 
-Use `pnpm release:ios` for TestFlight work; do not hand-roll `tauri ios build`
-and `altool` unless debugging the helper itself. Start with
-`pnpm release:ios --build-number=<number>`.
+Use `pnpm build:ios` and `pnpm upload:testflight` for TestFlight work; do not
+hand-roll `tauri ios build` and `altool` unless debugging the helpers
+themselves. Start with `pnpm build:ios --build-number=<number>`.
 
 The iOS bundle identifier is `app.reflect.ios`, intentionally separate from the
 old Capacitor TestFlight app (`app.reflect.ReflectMobile`). The release helper

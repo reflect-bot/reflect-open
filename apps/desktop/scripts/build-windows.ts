@@ -2,7 +2,7 @@
 // TAURI_SIGNING_PRIVATE_KEY set, Tauri also writes the updater signature
 // (`.sig`) of the installer. See docs/windows-builds.md.
 //
-//   pnpm release:windows [--target=<triple>] [--artifact-dir=<path>]
+//   pnpm build:windows [--target=<triple>] [--artifact-dir=<path>]
 
 import { readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'

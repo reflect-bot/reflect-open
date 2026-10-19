@@ -1,6 +1,6 @@
 // Builds a signed, notarized macOS app and DMG. See docs/macos-distribution.md.
 //
-//   pnpm release:macos [flags]
+//   pnpm build:macos [flags]
 //
 //   --target=<triple>       Default: the host triple
 //   --artifact-dir=<path>   Copy the release assets there after the build

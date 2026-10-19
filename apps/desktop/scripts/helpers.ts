@@ -17,6 +17,10 @@ const ROOT_DIR = join(APP_DIR, '..', '..')
 export const TAURI_SRC_DIR = join(APP_DIR, 'src-tauri')
 export const TARGET_DIR = join(ROOT_DIR, 'target')
 
+const IOS_BUILD_DIR = join(TAURI_SRC_DIR, 'gen', 'apple', 'build')
+export const IOS_ARCHIVE_PATH = join(IOS_BUILD_DIR, 'reflect-open_iOS.xcarchive')
+export const IOS_IPA_PATH = join(IOS_BUILD_DIR, 'arm64', 'Reflect.ipa')
+
 /** `tinyexec` options for a command that prints straight to the terminal. */
 export const INHERIT = { throwOnError: true, nodeOptions: { stdio: 'inherit' } } as const
 

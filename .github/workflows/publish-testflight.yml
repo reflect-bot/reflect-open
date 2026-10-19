@@ -71,14 +71,22 @@ jobs:
           echo "value=$build_number" >> "$GITHUB_OUTPUT"
           echo "Using TestFlight CFBundleVersion $build_number"
 
-      - name: Build and upload to TestFlight
+      - name: Build
         env:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-        run: pnpm release:ios --build-number="$BUILD_NUMBER"
+        run: pnpm build:ios --build-number="$BUILD_NUMBER"
+
+      - name: Upload to TestFlight
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: pnpm upload:testflight
 
       # Xcode Organizer symbolicates a TestFlight crash report from the local
       # archive, which a CI runner throws away. Keep it so an Apple `.ips` that

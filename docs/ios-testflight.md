@@ -3,12 +3,14 @@
 How to build Reflect's Tauri iOS target and upload it to TestFlight.
 
 ```bash
-pnpm release:ios --build-number=<digits>
+pnpm build:ios --build-number=<digits>
+pnpm upload:testflight
 ```
 
-The helper lives at `apps/desktop/scripts/release-ios.ts` and is exposed as
-`pnpm release:ios` from the repo root. It does what the TestFlight workflow runs:
-build, check, upload.
+The helpers live at `apps/desktop/scripts/build-ios.ts` and
+`apps/desktop/scripts/upload-testflight.ts`, and are exposed as `pnpm build:ios`
+and `pnpm upload:testflight` from the repo root. They do what the TestFlight
+workflow runs: build and check, then upload.
 
 ## What You Need
 
@@ -61,7 +63,7 @@ build, check, upload.
 ## Commands
 
 ```bash
-pnpm release:ios --build-number=<digits>
+pnpm build:ios --build-number=<digits>
 ```
 
 Runs `tauri ios build --export-method app-store-connect --ci` with the App Store
@@ -71,11 +73,16 @@ Connect API key. The build number is merged into the Tauri config as
 tables so Xcode can produce a dSYM that symbolicates native frames. The helper
 requires the current archive's main dSYM, verifies its UUID against the archived
 executable, and asserts the native diagnostics entry point is linked into the
-executable. When `SENTRY_AUTH_TOKEN` is set it uploads only that archive's
-native symbols, without source bundles. A `VITE_SENTRY_DSN` that is not the
-production project is a release error. The helper then uploads the IPA with
-`xcrun altool --upload-package --wait`, which returns after App Store Connect has
-processed the build.
+executable. A `VITE_SENTRY_DSN` that is not the production project is a
+release error.
+
+```bash
+pnpm upload:testflight
+```
+
+Uploads that archive's native symbols to Sentry, without source bundles, then
+uploads the IPA with `xcrun altool --upload-package --wait`, which returns after
+App Store Connect has processed the build.
 
 ## GitHub Action
 
@@ -83,8 +90,8 @@ The TestFlight workflow runs as part of every release, called from
 `.github/workflows/publish-desktop.yml`. To retry it, re-run its failed job in
 the Release run. The workflow builds on
 `macos-26`, uploads the IPA to App Store Connect, and serializes runs so two
-uploads do not race each other. It keeps both the exported IPA and a
-metadata-preserving ZIP of the exact `.xcarchive` for 30 days. The archive holds
+uploads do not race each other. It keeps the exported IPA for 30 days and a
+metadata-preserving ZIP of the exact `.xcarchive` for 90 days. The archive holds
 the matching binaries and dSYMs needed to symbolicate an Apple `.ips` report
 that arrives later; the archive is packaged even when the run failed, so the
 evidence survives a release blocker.

@@ -115,7 +115,7 @@ jobs:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-        run: pnpm release:macos --target=${{ matrix.target }} --artifact-dir="$RUNNER_TEMP/macos-artifacts"
+        run: pnpm build:macos --target=${{ matrix.target }} --artifact-dir="$RUNNER_TEMP/macos-artifacts"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

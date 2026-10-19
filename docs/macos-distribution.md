@@ -4,11 +4,11 @@ How to produce a signed, notarized macOS build of Reflect for distribution outsi
 Mac App Store.
 
 ```bash
-pnpm release:macos                 # signed + notarized build for this Mac's architecture
+pnpm build:macos                   # signed + notarized build for this Mac's architecture
 ```
 
-The helper lives at `apps/desktop/scripts/release-macos.ts` and is exposed as
-`pnpm release:macos` from the repo root. It only builds. `publish-macos.yml` uploads the
+The helper lives at `apps/desktop/scripts/build-macos.ts` and is exposed as
+`pnpm build:macos` from the repo root. It only builds. `publish-macos.yml` uploads the
 assets into the draft release, and the finalize job in `publish-desktop.yml` publishes it.
 
 ## What you need
@@ -54,7 +54,7 @@ assets into the draft release, and the finalize job in `publish-desktop.yml` pub
 Nothing signing-related is committed to the repo: contributors without the certificate
 can still build unsigned bundles with plain `pnpm tauri build`.
 
-## What `pnpm release:macos` does
+## What `pnpm build:macos` does
 
 1. Reads the Developer ID identity from `APPLE_SIGNING_IDENTITY`.
 2. Loads notarization credentials from environment variables (see
@@ -85,11 +85,11 @@ Bundles land under `target/<target-triple>/release/bundle/`, for example
 ## Commands and flags
 
 ```bash
-pnpm release:macos                 # build + notarize + verify
-pnpm release:macos --target=x86_64-apple-darwin  # the same for Intel
-pnpm release:macos --target=universal-apple-darwin  # one app for Apple Silicon and Intel
-pnpm release:macos --no-notarize   # signed-only build (runs locally; Gatekeeper rejects it elsewhere)
-pnpm release:macos --artifact-dir=<dir>  # also copy the release assets to <dir>
+pnpm build:macos                   # build + notarize + verify
+pnpm build:macos --target=x86_64-apple-darwin  # the same for Intel
+pnpm build:macos --target=universal-apple-darwin  # one app for Apple Silicon and Intel
+pnpm build:macos --no-notarize     # signed-only build (runs locally; Gatekeeper rejects it elsewhere)
+pnpm build:macos --artifact-dir=<dir>  # also copy the release assets to <dir>
 ```
 
 CI runs `--target=<triple> --artifact-dir=<dir>` once per macOS build and uploads the
@@ -264,7 +264,7 @@ The base `tauri.conf.json` is the stable flavor and uses the shipped gradient ic
 (`icons/`). Beta and dev are config overlays (`src-tauri/tauri.beta.conf.json`,
 `src-tauri/tauri.dev.conf.json`) merged with `--config`; their icons are the same
 artwork recolored via `magick -modulate` (beta `104,100,120`, dev `92,100,231`; see
-`src-tauri/icons/README.md`). `release:macos` picks the flavor from the version
+`src-tauri/icons/README.md`). `build:macos` picks the flavor from the version
 (prerelease → beta, else stable), so a release always matches the updater feed compiled
 into it; `publish-macos.yml` needs no flavor knowledge.
 
@@ -283,7 +283,7 @@ Local builds:
 pnpm tauri:dev                                   # run Reflect Dev (green), isolated identifier
 pnpm tauri:build:dev                             # bundle Reflect Dev
 pnpm tauri:build:beta                            # bundle Reflect Beta locally (unsigned)
-pnpm release:macos --no-notarize                 # signed-only build of the version's flavor
+pnpm build:macos --no-notarize                   # signed-only build of the version's flavor
 ```
 
 Because GitHub rewrites spaces in uploaded asset names to dots, the updater manifest URL
@@ -365,5 +365,5 @@ on the runner keychain setup.
 
 ## Current limitations
 
-- iOS/TestFlight distribution is handled separately by `pnpm release:ios`; see
+- iOS/TestFlight distribution is handled separately by `pnpm build:ios` and `pnpm upload:testflight`; see
   [iOS TestFlight Builds](ios-testflight.md).

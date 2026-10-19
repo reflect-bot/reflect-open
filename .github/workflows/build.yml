@@ -29,21 +29,21 @@ jobs:
         include:
           - name: macos
             os: macos-26
-            command: pnpm release:macos --target=universal-apple-darwin --no-sign
+            command: pnpm build:macos --target=universal-apple-darwin --no-sign
           - name: ios
             os: macos-26
-            command: pnpm release:ios --build-number=1 --no-sign
+            command: pnpm build:ios --build-number=1 --no-sign
           - name: windows
             os: windows-2025
-            command: pnpm release:windows
+            command: pnpm build:windows
           # The oldest Ubuntu that can link the prebuilt ONNX Runtime, which
           # needs glibc 2.38 and the libstdc++ of GCC 14.
           - name: linux-x64
             os: ubuntu-24.04
-            command: pnpm release:linux
+            command: pnpm build:linux
           - name: linux-arm64
             os: ubuntu-24.04-arm
-            command: pnpm release:linux
+            command: pnpm build:linux
 
     name: build-${{ matrix.name }}
     runs-on: ${{ matrix.os }}

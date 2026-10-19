@@ -1,35 +1,31 @@
-// Builds the iOS app, checks it, and uploads it to TestFlight. See docs/ios-testflight.md.
+// Builds the iOS app and checks the IPA and its dSYM. `pnpm upload:testflight`
+// uploads the result. See docs/ios-testflight.md.
 //
-//   pnpm release:ios --build-number=<digits>
+//   pnpm build:ios --build-number=<digits>
 //
 //   --build-number=<digits>   Required
-//   --no-sign                 Unsigned build without credentials: nothing is uploaded
+//   --no-sign                 Unsigned archive without credentials. It cannot be installed
 
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { exec } from 'tinyexec'
 import {
-  APP_DIR,
-  INHERIT,
+  IOS_ARCHIVE_PATH,
+  IOS_IPA_PATH,
   log,
   resolveApiKey,
   runTauri,
   runWithTempDir,
-  TAURI_SRC_DIR,
 } from './helpers.ts'
 
 const BUNDLE_IDENTIFIER = 'app.reflect.ios'
 const APP_GROUP = 'group.app.reflect'
 const SENTRY_DSN_PATTERN =
   /^https:\/\/[0-9a-f]{32}@o463484\.ingest\.us\.sentry\.io\/4511705649971200$/
-const BUILD_DIR = join(TAURI_SRC_DIR, 'gen', 'apple', 'build')
-const ARCHIVE_PATH = join(BUILD_DIR, 'reflect-open_iOS.xcarchive')
-const IPA_PATH = join(BUILD_DIR, 'arm64', 'Reflect.ipa')
-
-const APP_BINARY_PATH = join(ARCHIVE_PATH, 'Products', 'Applications', 'Reflect.app', 'Reflect')
+const APP_BINARY_PATH = join(IOS_ARCHIVE_PATH, 'Products', 'Applications', 'Reflect.app', 'Reflect')
 const DSYM_BINARY_PATH = join(
-  ARCHIVE_PATH,
+  IOS_ARCHIVE_PATH,
   'dSYMs',
   'Reflect.app.dSYM',
   'Contents',
@@ -37,24 +33,6 @@ const DSYM_BINARY_PATH = join(
   'DWARF',
   'Reflect',
 )
-
-interface Credentials {
-  readonly altoolArgs: readonly string[]
-  readonly env: NodeJS.ProcessEnv
-}
-
-/** The App Store Connect API key, as altool arguments and as the environment Tauri reads. */
-function resolveCredentials(tempDir: string): Credentials {
-  const apiKey = resolveApiKey(tempDir)
-  if (!apiKey) {
-    throw new Error('the App Store Connect API key is not set')
-  }
-  const { keyId, issuer, keyPath } = apiKey
-  return {
-    altoolArgs: ['--api-key', keyId, '--api-issuer', issuer, '--p8-file-path', keyPath],
-    env: { APPLE_API_KEY_PATH: keyPath },
-  }
-}
 
 /** Official builds must report to the production Sentry project or not at all. */
 function assertSentryDsn(): void {
@@ -90,7 +68,7 @@ async function assertAppexEntitlements(app: string): Promise<void> {
 
 async function assertIpa(): Promise<void> {
   await runWithTempDir(async (tempDir) => {
-    await exec('unzip', ['-q', IPA_PATH, 'Payload/*', '-d', tempDir], { throwOnError: true })
+    await exec('unzip', ['-q', IOS_IPA_PATH, 'Payload/*', '-d', tempDir], { throwOnError: true })
     const payloadDir = join(tempDir, 'Payload')
     const appName = readdirSync(payloadDir).find((name) => name.endsWith('.app'))
     if (!appName) {
@@ -131,47 +109,6 @@ async function assertArchiveSymbols(): Promise<void> {
   }
 }
 
-async function uploadDebugFiles(): Promise<void> {
-  const project = ['--org', 'reflect-64', '--project', 'reflect-open']
-  const upload = ['--type', 'dsym', '--no-sources', '--wait-for', '60', ARCHIVE_PATH]
-  const sentryCli = join(APP_DIR, 'node_modules', '.bin', 'sentry-cli')
-  await exec(sentryCli, ['debug-files', 'upload', ...project, ...upload], INHERIT)
-}
-
-async function build(buildNumber: string, credentials: Credentials): Promise<void> {
-  const config = JSON.stringify({ bundle: { iOS: { bundleVersion: buildNumber } } })
-  await runTauri(
-    ['ios', 'build', '--export-method', 'app-store-connect', '--ci', '--config', config],
-    {
-      // Without line tables the dSYM cannot symbolicate Rust frames.
-      CARGO_PROFILE_RELEASE_DEBUG: 'line-tables-only',
-      ...credentials.env,
-    },
-  )
-  await assertIpa()
-  await assertArchiveSymbols()
-  await uploadDebugFiles()
-  log(`built ${IPA_PATH} (build ${buildNumber})`)
-}
-
-/** Checks that the app compiles and archives. The result cannot be installed. */
-async function buildUnsigned(buildNumber: string): Promise<void> {
-  const config = JSON.stringify({ bundle: { iOS: { bundleVersion: buildNumber } } })
-  await runTauri(['ios', 'build', '--no-sign', '--ci', '--config', config], {
-    CARGO_PROFILE_RELEASE_DEBUG: 'line-tables-only',
-  })
-  await assertArchiveSymbols()
-  log(`built an unsigned archive at ${ARCHIVE_PATH}`)
-}
-
-async function runAltool(args: readonly string[], credentials: Credentials): Promise<void> {
-  const allArgs = ['altool', ...args, ...credentials.altoolArgs, '--output-format', 'json']
-  await exec('xcrun', allArgs, {
-    throwOnError: true,
-    nodeOptions: { env: credentials.env, stdio: 'inherit' },
-  })
-}
-
 async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
@@ -184,17 +121,29 @@ async function main(): Promise<void> {
     throw new Error(`invalid build number "${buildNumber}"`)
   }
   assertSentryDsn()
-  if (values['no-sign']) {
-    await buildUnsigned(buildNumber)
-    return
-  }
 
+  const config = JSON.stringify({ bundle: { iOS: { bundleVersion: buildNumber } } })
   await runWithTempDir(async (tempDir) => {
-    const credentials = resolveCredentials(tempDir)
-    await build(buildNumber, credentials)
-    // --wait blocks until App Store Connect has processed the build.
-    await runAltool(['--upload-package', IPA_PATH, '--show-progress', '--wait'], credentials)
+    const args = ['ios', 'build', '--ci', '--config', config]
+    // Without line tables the dSYM cannot symbolicate Rust frames.
+    const env: NodeJS.ProcessEnv = { CARGO_PROFILE_RELEASE_DEBUG: 'line-tables-only' }
+    if (values['no-sign']) {
+      args.push('--no-sign')
+    } else {
+      const apiKey = resolveApiKey(tempDir)
+      if (!apiKey) {
+        throw new Error('the App Store Connect API key is not set')
+      }
+      args.push('--export-method', 'app-store-connect')
+      env.APPLE_API_KEY_PATH = apiKey.keyPath
+    }
+    await runTauri(args, env)
   })
+  if (!values['no-sign']) {
+    await assertIpa()
+  }
+  await assertArchiveSymbols()
+  log(`built ${values['no-sign'] ? IOS_ARCHIVE_PATH : IOS_IPA_PATH} (build ${buildNumber})`)
 }
 
 await main()

@@ -2,7 +2,7 @@
 // TAURI_SIGNING_PRIVATE_KEY set, Tauri also writes the updater signature
 // (`.sig`) of each package.
 //
-//   pnpm release:linux [--target=<triple>] [--artifact-dir=<path>]
+//   pnpm build:linux [--target=<triple>] [--artifact-dir=<path>]
 
 import { readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
