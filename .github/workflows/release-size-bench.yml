@@ -22,7 +22,7 @@ env:
   # A new round name starts every job from an empty cargo cache.
   BENCH_ROUND: r1
   # The targets of this batch. One batch must fit in the repository cache.
-  BENCH_TARGETS: macos-arm64 macos-universal
+  BENCH_TARGETS: ios windows
 
 defaults:
   run:
