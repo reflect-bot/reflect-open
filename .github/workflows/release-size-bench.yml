@@ -1,0 +1,136 @@
+# TEMPORARY: compares release build times and download sizes before and after
+# this PR, with and without the cargo cache. Remove before merging.
+name: Release size bench
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/release-size-bench.yml
+      - .github/bench/**
+
+concurrency:
+  group: release-size-bench
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  # The master commit this branch starts from: the "base" config.
+  BASE_SHA: f6be8d0d86aa0a96175f65782dd1f3355a5e994f
+  # A new round name starts every job from an empty cargo cache.
+  BENCH_ROUND: r1
+  # The targets of this batch. One batch must fit in the repository cache.
+  BENCH_TARGETS: macos-arm64 macos-universal
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - id: matrix
+        run: |
+          all='[
+            {"target": "macos-arm64", "os": "macos-26", "triple": "aarch64-apple-darwin", "script": "macos", "args": "--target=aarch64-apple-darwin --no-sign"},
+            {"target": "macos-universal", "os": "macos-26", "triple": "universal-apple-darwin", "script": "macos", "args": "--target=universal-apple-darwin --no-sign"},
+            {"target": "ios", "os": "macos-26", "triple": "", "script": "ios", "args": "--build-number=1 --no-sign"},
+            {"target": "windows", "os": "windows-2025", "triple": "", "script": "windows", "args": ""},
+            {"target": "linux-x64", "os": "ubuntu-24.04", "triple": "", "script": "linux", "args": ""},
+            {"target": "linux-arm64", "os": "ubuntu-24.04-arm", "triple": "", "script": "linux", "args": ""}
+          ]'
+          matrix=$(jq -c --arg targets "$BENCH_TARGETS" '{include: [
+            .[] | select(.target as $t | $targets | split(" ") | index($t))
+            | . as $entry | ("base", "new") | $entry + {config: .}
+          ]}' <<<"$all")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  bench:
+    needs: plan
+    name: ${{ matrix.target }} ${{ matrix.config }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ matrix.config == 'base' && env.BASE_SHA || github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      # The base commit has no bench scripts.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: bench-tools
+          sparse-checkout: .github/bench
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-node
+
+      - uses: ./.github/actions/setup-rust
+        with:
+          cache-key: bench-${{ env.BENCH_ROUND }}-${{ matrix.config }}-${{ matrix.target }}
+
+      - name: Check the cache
+        id: cache
+        run: |
+          if [ -n "$(ls -A target 2>/dev/null)" ]; then hit=true; else hit=false; fi
+          echo "hit=$hit" >> "$GITHUB_OUTPUT"
+
+      - name: Add the x86_64 macOS target
+        if: matrix.target == 'macos-universal'
+        run: rustup target add x86_64-apple-darwin
+
+      - name: Build
+        run: pnpm ${{ matrix.config == 'base' && 'release' || 'build' }}:${{ matrix.script }} ${{ matrix.args }}
+
+      - name: Measure
+        env:
+          BENCH_TARGET: ${{ matrix.target }}
+          BENCH_CONFIG: ${{ matrix.config }}
+          BENCH_TRIPLE: ${{ matrix.triple }}
+          BENCH_ATTEMPT: ${{ github.run_attempt }}
+          BENCH_CACHE_HIT: ${{ steps.cache.outputs.hit }}
+        run: bash bench-tools/.github/bench/measure.sh
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bench-${{ github.run_attempt }}-${{ matrix.config }}-${{ matrix.target }}
+          path: ${{ runner.temp }}/bench/*.json
+          retention-days: 7
+
+  summarize:
+    needs: bench
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/bench
+          persist-credentials: false
+
+      # Artifacts belong to the run, so a rerun also sees those of earlier attempts.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: bench-[0-9]*
+          path: ${{ runner.temp }}/bench
+          merge-multiple: true
+
+      - name: Summarize
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BENCH_DIR: ${{ runner.temp }}/bench
+        run: python3 .github/bench/summarize.py
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bench-summary-${{ github.run_attempt }}
+          path: summary.*
+          retention-days: 30
