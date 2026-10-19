@@ -1,20 +1,30 @@
-// Builds a signed, notarized macOS app and DMG. See docs/macos-distribution.md.
+// Builds a signed, notarized macOS app and DMG. The shipped executables are
+// stripped; their symbols stay in dSYMs. See docs/macos-distribution.md.
 //
 //   pnpm build:macos [flags]
 //
 //   --target=<triple>       Default: the host triple
-//   --artifact-dir=<path>   Copy the release assets there after the build
+//   --artifact-dir=<path>   Copy the release assets and the dSYMs there after the build
 //   --no-notarize           Signed-only build, for local runs without Apple credentials
 //   --no-sign               Unsigned app only, to check that it compiles and bundles
 
 import { randomBytes } from 'node:crypto'
-import { copyFileSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { apply as applyMergePatch } from 'tiny-merge-patch'
 import { exec } from 'tinyexec'
 import { z } from 'zod'
 import {
+  assertDsyms,
   assertSentryDsn,
   getFlavorConfigArgs,
   getFlavorOverlay,
@@ -29,13 +39,21 @@ import {
   TAURI_SRC_DIR,
 } from './helpers.ts'
 
+const APPLE_SILICON_TARGET = 'aarch64-apple-darwin'
 const INTEL_TARGET = 'x86_64-apple-darwin'
 const UNIVERSAL_TARGET = 'universal-apple-darwin'
 const ARCHS: Record<string, string> = {
-  'aarch64-apple-darwin': 'aarch64',
+  [APPLE_SILICON_TARGET]: 'aarch64',
   [INTEL_TARGET]: 'x86_64',
   [UNIVERSAL_TARGET]: 'universal',
 }
+const MAIN_BINARY = 'reflect-open'
+/** A symbol from each shipped executable's own crate, which stripping removes. */
+const CRATE_SYMBOLS = new Map([
+  [MAIN_BINARY, 'reflect_open_lib'],
+  ['reflect', 'reflect_cli'],
+  ['reflect-capture-host', 'reflect_capture_host'],
+])
 const PROFILE_IDENTITY_KEYS = [
   'com.apple.application-identifier',
   'com.apple.developer.team-identifier',
@@ -53,6 +71,13 @@ const TauriConfigSchema = z.object({
   }),
 })
 
+interface Executable {
+  readonly path: string
+  readonly symbol: string
+  /** One dSYM per architecture. */
+  readonly dsyms: readonly string[]
+}
+
 interface Bundle {
   readonly target: string
   readonly arch: string
@@ -64,6 +89,7 @@ interface Bundle {
   readonly hasProfile: boolean
   readonly app: string
   readonly sidecars: readonly string[]
+  readonly executables: readonly Executable[]
   readonly dmg: string
   readonly updaterArchive: string
 }
@@ -94,6 +120,19 @@ function resolveBundle(target: string): Bundle {
   const version = readAppVersion()
   const bundleDir = join(TARGET_DIR, target, 'release', 'bundle')
   const app = join(bundleDir, 'macos', `${productName}.app`)
+  const macosDir = join(app, 'Contents', 'MacOS')
+  const sidecars = bundle.externalBin.map((path) => join(macosDir, basename(path)))
+  // A universal build compiles each architecture on its own and merges them with lipo.
+  const triples = target === UNIVERSAL_TARGET ? [APPLE_SILICON_TARGET, INTEL_TARGET] : [target]
+  const executables = [join(macosDir, MAIN_BINARY), ...sidecars].map((path) => {
+    const name = basename(path)
+    const symbol = CRATE_SYMBOLS.get(name)
+    if (!symbol) {
+      throw new Error(`no crate symbol for ${name}`)
+    }
+    const dsyms = triples.map((triple) => join(TARGET_DIR, triple, 'release', `${name}.dSYM`))
+    return { path, symbol, dsyms }
+  })
   return {
     target,
     arch,
@@ -103,7 +142,8 @@ function resolveBundle(target: string): Bundle {
     entitlements: join(TAURI_SRC_DIR, bundle.macOS.entitlements),
     hasProfile: 'embedded.provisionprofile' in bundle.macOS.files,
     app,
-    sidecars: bundle.externalBin.map((path) => join(app, 'Contents', 'MacOS', basename(path))),
+    sidecars,
+    executables,
     dmg: join(bundleDir, 'dmg', `${productName}_${version}_${arch}.dmg`),
     updaterArchive: `${app}.tar.gz`,
   }
@@ -122,14 +162,23 @@ function resolveNotaryArgs(identity: string, tempDir: string): string[] {
   return ['--apple-id', APPLE_ID, '--password', APPLE_PASSWORD, '--team-id', teamId]
 }
 
-async function buildApp(target: string): Promise<void> {
-  const args = ['build', '--target', target, '--bundles', 'app', ...getFlavorConfigArgs()]
+async function buildApp(bundle: Bundle): Promise<void> {
+  const args = ['build', '--target', bundle.target, '--bundles', 'app', ...getFlavorConfigArgs()]
   // Tauri notarizes whenever these are set, but notarization must wait until
   // the sidecars are re-signed.
   for (const name of ['APPLE_ID', 'APPLE_PASSWORD', 'APPLE_API_KEY', 'APPLE_API_ISSUER']) {
     delete process.env[name]
   }
-  await runTauri(args)
+  // Cargo writes a dSYM next to each executable, then strips the executable.
+  // The sidecar build in `beforeBuildCommand` inherits these.
+  await runTauri(args, {
+    CARGO_PROFILE_RELEASE_DEBUG: 'line-tables-only',
+    CARGO_PROFILE_RELEASE_SPLIT_DEBUGINFO: 'packed',
+    CARGO_PROFILE_RELEASE_STRIP: 'symbols',
+  })
+  for (const { path, dsyms, symbol } of bundle.executables) {
+    await assertDsyms(path, dsyms, symbol)
+  }
 }
 
 /**
@@ -347,7 +396,7 @@ async function verifyProfileIdentity(bundle: Bundle): Promise<void> {
 
 /** A sidecar with a bad signature passes `codesign --verify` and dies at launch, so launch them. */
 async function verifySidecarsLaunch(bundle: Bundle): Promise<void> {
-  if (bundle.target === 'aarch64-apple-darwin' && process.arch !== 'arm64') {
+  if (bundle.target === APPLE_SILICON_TARGET && process.arch !== 'arm64') {
     return
   }
   const slices =
@@ -384,13 +433,21 @@ async function verify(bundle: Bundle, notarized: boolean): Promise<void> {
   }
 }
 
-/** Copies the release assets under the names they are published with. */
-function exportArtifacts(bundle: Bundle, artifactDir: string): void {
-  const archiveName = `${bundle.assetName}_${bundle.version}_${bundle.arch}.app.tar.gz`
+/** Copies the release assets and a zip of the dSYMs under the names they are published with. */
+async function exportArtifacts(bundle: Bundle, artifactDir: string): Promise<void> {
+  const prefix = `${bundle.assetName}_${bundle.version}_${bundle.arch}`
   mkdirSync(artifactDir, { recursive: true })
   copyFileSync(bundle.dmg, join(artifactDir, `${bundle.assetName}_${bundle.arch}.dmg`))
-  copyFileSync(bundle.updaterArchive, join(artifactDir, archiveName))
-  copyFileSync(`${bundle.updaterArchive}.sig`, join(artifactDir, `${archiveName}.sig`))
+  copyFileSync(bundle.updaterArchive, join(artifactDir, `${prefix}.app.tar.gz`))
+  copyFileSync(`${bundle.updaterArchive}.sig`, join(artifactDir, `${prefix}.app.tar.gz.sig`))
+  await runWithTempDir(async (tempDir) => {
+    // `<triple>/<binary>.dSYM`: a universal build has one dSYM per architecture.
+    for (const dsym of bundle.executables.flatMap((executable) => executable.dsyms)) {
+      const triple = basename(dirname(dirname(dsym)))
+      await exec('ditto', [realpathSync(dsym), join(tempDir, triple, basename(dsym))], INHERIT)
+    }
+    await exec('ditto', ['-c', '-k', tempDir, join(artifactDir, `${prefix}.dSYMs.zip`)], INHERIT)
+  })
 }
 
 async function main(): Promise<void> {
@@ -404,13 +461,13 @@ async function main(): Promise<void> {
   })
   assertSentryDsn()
   const artifactDir = values['artifact-dir']
+  const bundle = resolveBundle(values.target ?? (await getHostTriple()))
   if (values['no-sign']) {
     if (artifactDir) {
       throw new Error('--no-sign makes no release assets, so it cannot be used with --artifact-dir')
     }
-    const { target, app } = resolveBundle(values.target ?? (await getHostTriple()))
-    await buildApp(target)
-    log(`done (unsigned): ${app}`)
+    await buildApp(bundle)
+    log(`done (unsigned): ${bundle.app}`)
     return
   }
   const identity = process.env.APPLE_SIGNING_IDENTITY
@@ -421,11 +478,10 @@ async function main(): Promise<void> {
   if (artifactDir && !hasUpdaterKey) {
     throw new Error('TAURI_SIGNING_PRIVATE_KEY is not set')
   }
-  const bundle = resolveBundle(values.target ?? (await getHostTriple()))
 
   await runWithTempDir(async (tempDir) => {
     const notaryArgs = values['no-notarize'] ? null : resolveNotaryArgs(identity, tempDir)
-    await buildApp(bundle.target)
+    await buildApp(bundle)
     await runWithSigningKeychain(tempDir, async (keychain) => {
       const signer = { identity, keychain }
       await resignApp(bundle, signer, tempDir)
@@ -444,7 +500,7 @@ async function main(): Promise<void> {
     await verify(bundle, notaryArgs !== null)
   })
   if (artifactDir) {
-    exportArtifacts(bundle, artifactDir)
+    await exportArtifacts(bundle, artifactDir)
   }
   log(`done: ${bundle.dmg}`)
 }

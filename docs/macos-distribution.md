@@ -60,7 +60,9 @@ can still build unsigned bundles with plain `pnpm tauri build`.
 2. Loads notarization credentials from environment variables (see
    [Releasing from CI](#releasing-from-ci) below).
 3. Runs `pnpm tauri build --target <target> --bundles app`, which stages the `reflect`
-   CLI sidecar for that target and signs the app bundle. The release helper then
+   CLI sidecar for that target and signs the app bundle. Cargo strips the symbols from
+   `reflect-open` and both sidecars and keeps them in a dSYM next to each executable
+   (see [Symbolicating a crash](#symbolicating-a-crash)). The release helper then
    re-signs the bundled sidecars without the app's restricted entitlements, re-signs the
    `.app` with its entitlement file plus the flavor-specific identity entitlements from
    its embedded provisioning profile, notarizes the finalized `.app` via `notarytool`,
@@ -341,6 +343,35 @@ The workflow verifies the secrets before building, so a misconfigured runner fai
 seconds rather than after the build and notarization. See the
 [Tauri macOS signing docs](https://v2.tauri.app/distribute/sign/macos/) for background
 on the runner keychain setup.
+
+## Symbolicating a crash
+
+Release builds strip the symbols from `reflect-open` and both sidecars.
+`pnpm build:macos` keeps them in dSYMs and checks that each dSYM matches its
+executable. `publish-macos.yml` attaches them to the GitHub release as
+`<asset>_<version>_<arch>.dSYMs.zip`, and the workflow artifact keeps another
+copy for 90 days.
+
+1. Get the crash report: `~/Library/Logs/DiagnosticReports/Reflect-*.ips` on the
+   user's Mac, or Console → Crash Reports.
+2. In the report, find `reflect-open` under `usedImages` and note its `uuid`,
+   `arch`, and `base`. A frame's address is `base` plus its `imageOffset`.
+3. Download the dSYMs of that version:
+
+   ```bash
+   gh release download v<version> --repo team-reflect/reflect-open --pattern '*.dSYMs.zip'
+   ```
+
+4. Unzip each file and run `dwarfdump --uuid <triple>/reflect-open.dSYM`. Use the
+   dSYM whose UUID matches the report.
+5. Symbolicate:
+
+   ```bash
+   atos -o <triple>/reflect-open.dSYM -arch <arch> -l <base> <address>...
+   ```
+
+   Rust names are mangled. Pipe the output through `rustfilt`
+   (`cargo install rustfilt`) to read them.
 
 ## Troubleshooting
 

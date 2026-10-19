@@ -126,7 +126,9 @@ jobs:
           # The DMG and the updater archive are already compressed; zipping
           # them again wastes minutes for nothing.
           compression-level: 0
-          retention-days: 30
+          # The dSYMs symbolicate crash reports. 90 days is the most a public
+          # repository allows; the release keeps another copy.
+          retention-days: 90
 
       # Uploads clobber, so a failed run can be retried.
       - name: Upload the assets to the draft release

@@ -3,6 +3,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -103,6 +104,46 @@ export function getFlavorConfigArgs(): string[] {
 export async function getHostTriple(): Promise<string> {
   const { stdout } = await exec('rustc', ['--print', 'host-tuple'], { throwOnError: true })
   return stdout.trim()
+}
+
+/** The Mach-O UUIDs of binaries or dSYMs, sorted and joined. */
+async function readUuids(paths: readonly string[]): Promise<string> {
+  const { stdout } = await exec('xcrun', ['dwarfdump', '--uuid', ...paths], { throwOnError: true })
+  return [...stdout.matchAll(/^UUID: ([0-9A-F-]{36})/gim)]
+    .map((match) => match[1])
+    .toSorted()
+    .join(',')
+}
+
+async function readSymbols(path: string): Promise<string> {
+  return (await exec('xcrun', ['nm', '-j', path], { throwOnError: true })).stdout
+}
+
+/**
+ * A crash report can only be symbolicated with the dSYMs of the exact shipped
+ * executable. Checks that `binary` and `dsyms` have the same UUIDs, and that
+ * every dSYM has `symbol` while `binary` no longer does.
+ */
+export async function assertDsyms(
+  binary: string,
+  dsyms: readonly string[],
+  symbol: string,
+): Promise<void> {
+  const uuids = await readUuids([binary])
+  if (!uuids || uuids !== (await readUuids(dsyms))) {
+    throw new Error(`${basename(binary)} and its dSYMs do not have the same UUIDs`)
+  }
+  for (const dsym of dsyms) {
+    const dwarfDir = join(dsym, 'Contents', 'Resources', 'DWARF')
+    for (const name of readdirSync(dwarfDir)) {
+      if (!(await readSymbols(join(dwarfDir, name))).includes(symbol)) {
+        throw new Error(`${basename(dsym)} does not contain ${symbol}`)
+      }
+    }
+  }
+  if ((await readSymbols(binary)).includes(symbol)) {
+    throw new Error(`${basename(binary)} still contains ${symbol}`)
+  }
 }
 
 export interface ApiKey {

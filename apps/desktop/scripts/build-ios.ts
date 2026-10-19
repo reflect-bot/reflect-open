@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { exec } from 'tinyexec'
 import {
+  assertDsyms,
   assertSentryDsn,
   IOS_ARCHIVE_PATH,
   IOS_IPA_PATH,
@@ -23,15 +24,7 @@ import {
 const BUNDLE_IDENTIFIER = 'app.reflect.ios'
 const APP_GROUP = 'group.app.reflect'
 const APP_BINARY_PATH = join(IOS_ARCHIVE_PATH, 'Products', 'Applications', 'Reflect.app', 'Reflect')
-const DSYM_BINARY_PATH = join(
-  IOS_ARCHIVE_PATH,
-  'dSYMs',
-  'Reflect.app.dSYM',
-  'Contents',
-  'Resources',
-  'DWARF',
-  'Reflect',
-)
+const DSYM_PATH = join(IOS_ARCHIVE_PATH, 'dSYMs', 'Reflect.app.dSYM')
 
 async function readInfoValue(app: string, key: string): Promise<string> {
   const args = ['-extract', key, 'raw', '-o', '-', join(app, 'Info.plist')]
@@ -78,28 +71,6 @@ async function assertIpa(): Promise<void> {
   })
 }
 
-async function readUuids(binary: string): Promise<string> {
-  const output = (await exec('xcrun', ['dwarfdump', '--uuid', binary], { throwOnError: true }))
-    .stdout
-  return [...output.matchAll(/^UUID: ([0-9A-F-]{36})/gim)]
-    .map((match) => match[1])
-    .toSorted()
-    .join(',')
-}
-
-/** A crash report can only be symbolicated with the dSYM of the exact shipped executable. */
-async function assertArchiveSymbols(): Promise<void> {
-  const uuids = await readUuids(APP_BINARY_PATH)
-  if (!uuids || uuids !== (await readUuids(DSYM_BINARY_PATH))) {
-    throw new Error('the archive executable and its dSYM do not have the same UUIDs')
-  }
-  // The archive strips the executable's symbol table, so look in the dSYM.
-  const symbols = await exec('xcrun', ['nm', '-gUj', DSYM_BINARY_PATH], { throwOnError: true })
-  if (!symbols.stdout.includes('_reflect_start_native_diagnostics')) {
-    throw new Error('the app binary does not contain the native diagnostics entry point')
-  }
-}
-
 async function main(): Promise<void> {
   const { values } = parseArgs({
     options: {
@@ -133,7 +104,7 @@ async function main(): Promise<void> {
   if (!values['no-sign']) {
     await assertIpa()
   }
-  await assertArchiveSymbols()
+  await assertDsyms(APP_BINARY_PATH, [DSYM_PATH], '_reflect_start_native_diagnostics')
   log(`built ${values['no-sign'] ? IOS_ARCHIVE_PATH : IOS_IPA_PATH} (build ${buildNumber})`)
 }
 
