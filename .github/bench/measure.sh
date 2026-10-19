@@ -65,5 +65,5 @@ case "$BENCH_TARGET" in
     ;;
 esac
 
-mkdir -p "$RUNNER_TEMP/bench"
-tee "$RUNNER_TEMP/bench/$BENCH_ATTEMPT-$BENCH_CONFIG-$BENCH_TARGET.json" <<<"$json"
+# summarize.py reads this line from the job log.
+echo "BENCH_JSON $(jq -c . <<<"$json")"

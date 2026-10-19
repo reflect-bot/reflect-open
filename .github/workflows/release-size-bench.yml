@@ -23,6 +23,8 @@ env:
   BENCH_ROUND: r1
   # The targets of this batch. One batch must fit in the repository cache.
   BENCH_TARGETS: ios windows
+  # Earlier bench runs that the summary reports again.
+  BENCH_RUN_IDS: ""
 
 defaults:
   run:
