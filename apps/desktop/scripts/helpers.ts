@@ -70,7 +70,8 @@ export function exportArtifacts(paths: readonly string[], artifactDir: string): 
 
 /** Official builds must report to the production Sentry project or not at all. */
 export function assertSentryDsn(): void {
-  const dsn = process.env.VITE_SENTRY_DSN
+  // The app trims the value before it parses it.
+  const dsn = process.env.VITE_SENTRY_DSN?.trim()
   if (dsn && !SENTRY_DSN_PATTERN.test(dsn)) {
     throw new Error('VITE_SENTRY_DSN is not the production Reflect Sentry project')
   }

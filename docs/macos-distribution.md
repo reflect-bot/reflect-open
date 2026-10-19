@@ -352,7 +352,7 @@ executable. `publish-macos.yml` attaches them to the GitHub release as
 `<asset>_<version>_<arch>.dSYMs.zip`, and the workflow artifact keeps another
 copy for 90 days.
 
-1. Get the crash report: `~/Library/Logs/DiagnosticReports/Reflect-*.ips` on the
+1. Get the crash report: `~/Library/Logs/DiagnosticReports/reflect-open-*.ips` on the
    user's Mac, or Console → Crash Reports.
 2. In the report, find `reflect-open` under `usedImages` and note its `uuid`,
    `arch`, and `base`. A frame's address is `base` plus its `imageOffset`.
