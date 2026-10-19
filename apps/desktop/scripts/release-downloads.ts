@@ -1,7 +1,8 @@
 // Prints the "Download" section of the release notes as Markdown: one badge
-// per installer, each linked to that installer. It reads nothing from the
-// network. The asset names of the release are arguments, and an installer
-// that is not among them gets no badge.
+// per installer, each linked to that installer, and one badge for iOS, linked
+// to TestFlight for a beta version or to the App Store for a stable one. It
+// reads nothing from the network. The asset names of the release are
+// arguments, and an installer that is not among them gets no badge.
 //
 //   node apps/desktop/scripts/release-downloads.ts \
 //     --repo=<owner/name> --tag=<tag> --asset=<prefix> <asset-name>...
@@ -100,25 +101,45 @@ const INSTALLERS = [
 
 const PLATFORMS = [
   { os: 'macOS', heading: 'macOS', icon: 'apple' },
+  { os: 'iOS', heading: 'iOS', icon: 'apple' },
   { os: 'Windows', heading: 'Windows', icon: 'windows' },
   { os: 'Linux', heading: 'Linux (Experimental)', icon: 'linux' },
 ]
 
-let markdown = '## Download\n'
-for (const { os, heading, icon } of PLATFORMS) {
-  const badges = INSTALLERS.filter((item) => item.os === os && assetNames.includes(item.file)).map(
-    ({ chip, color, file }) => {
-      const image = `https://badgen.net/badge/${os}/${encodeURIComponent(chip)}/${color}?icon=${icon}`
-      return `[![${os} ${chip}](${image})](https://github.com/${repo}/releases/download/${tag}/${file})`
-    },
-  )
-  if (badges.length > 0) {
-    markdown += `\n### ${heading}\n\n${badges.join(' ')}\n`
-  }
-}
-if (!markdown.includes('###')) {
+const links = INSTALLERS.filter((item) => assetNames.includes(item.file)).map(
+  ({ file, ...item }) => ({ ...item, url: `https://github.com/${repo}/releases/download/${tag}/${file}` }),
+)
+if (links.length === 0) {
   fail(
     `no installer among the asset names. Expected: ${INSTALLERS.map((item) => item.file).join(', ')}`,
   )
+}
+links.push(
+  version.includes('-')
+    ? {
+        os: 'iOS',
+        chip: 'TestFlight',
+        color: '0EA5E9',
+        url: 'https://testflight.apple.com/join/j2eEz43d',
+      }
+    : {
+        os: 'iOS',
+        chip: 'App Store',
+        color: '0EA5E9',
+        url: 'https://apps.apple.com/us/app/reflect-open/id6787385615',
+      },
+)
+
+let markdown = '## Download\n'
+for (const { os, heading, icon } of PLATFORMS) {
+  const badges = links
+    .filter((item) => item.os === os)
+    .map(({ chip, color, url }) => {
+      const image = `https://badgen.net/badge/${os}/${encodeURIComponent(chip)}/${color}?icon=${icon}`
+      return `[![${os} ${chip}](${image})](${url})`
+    })
+  if (badges.length > 0) {
+    markdown += `\n### ${heading}\n\n${badges.join(' ')}\n`
+  }
 }
 process.stdout.write(markdown)
