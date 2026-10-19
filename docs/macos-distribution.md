@@ -74,9 +74,9 @@ can still build unsigned bundles with plain `pnpm tauri build`.
 6. Notarizes and staples the **DMG** itself. Without its
    own ticket the DMG container fails `spctl --type open` and downloads can hit
    Gatekeeper friction.
-7. Verifies everything (`codesign --verify --deep --strict`, sidecar launch, Gatekeeper
+7. Verifies everything — `codesign --verify --deep --strict`, sidecar launch, Gatekeeper
    assessment of the app and DMG (`accepted` / `source=Notarized Developer ID`), and
-   stapled tickets) and fails loudly if any check is off.
+   stapled tickets — and fails loudly if any check is off.
 
 Bundles land under `target/<target-triple>/release/bundle/`, for example
 `target/aarch64-apple-darwin/release/bundle/macos/Reflect.app` and
@@ -117,7 +117,7 @@ channel) that keep two **Release PRs** open side by side:
 
 **Merging a Release PR is the release, and the merge is the only human action.** Both
 Release PRs squash-merge (the default). release-please then creates a draft GitHub
-release (with its `v<version>` tag, created at once by `force-tag-creation`, so later release-please
+release (with its `v<version>` tag — `force-tag-creation`, so later release-please
 runs can always anchor on the previous release) and hands the tag name to the Release
 workflow, which builds, signs, notarizes, uploads the assets, and undrafts the
 release. Nothing is visible to users (and `releases/latest` does not move) until
@@ -133,7 +133,7 @@ before merging one.
 
 1. Land PRs on `master` as usual.
 2. When it's time to ship, open the beta Release PR (`chore: release X.Y.Z-beta.N`),
-   polish the changelog if needed (edit the PR branch; release-please regenerates the
+   polish the changelog if needed (edit the PR branch — release-please regenerates the
    PR when new commits land, so polish last), and **merge it**.
 3. Everything else is automatic, ending with the `updater-beta` feed refresh and the
    TestFlight upload. Installed Reflect Beta apps pick up the update.
@@ -321,10 +321,10 @@ which only `master` can use. Create these under **Settings → Environments → 
 
 | Secret | Value |
 | --- | --- |
-| `APPLE_SIGNING_IDENTITY` | Full identity string, e.g. `Developer ID Application: … (TEAMID)`, from `security find-identity -v -p codesigning` |
+| `APPLE_SIGNING_IDENTITY` | Full identity string, e.g. `Developer ID Application: … (TEAMID)` — from `security find-identity -v -p codesigning` |
 | `APPLE_CERTIFICATE` | The Developer ID certificate + private key: export a `.p12` from Keychain Access, then `base64 -i certificate.p12`. Tauri imports it for the `.app`; the release script imports it again into a temporary keychain for the re-signing and DMG signing |
 | `APPLE_CERTIFICATE_PASSWORD` | The password set on that `.p12` export |
-| `APPLE_API_KEY` | App Store Connect API key ID, for notarization (preferred in CI, not tied to a personal Apple ID) |
+| `APPLE_API_KEY` | App Store Connect API key ID, for notarization (preferred in CI — not tied to a personal Apple ID) |
 | `APPLE_API_ISSUER` | The API key's issuer UUID |
 | `APPLE_API_KEY_CONTENT` | The `.p8` key file's content, raw or base64; the script writes it to a temporary file |
 | `TAURI_SIGNING_PRIVATE_KEY` | The updater private key |
@@ -336,7 +336,7 @@ Notes:
   `(TEAMID)`) is for local releases only.
 - The updater key has no password. The release scripts default
   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` to empty, so CI does not pass it.
-- No PAT is needed: the release is published with the workflow's own `GITHUB_TOKEN`.
+- No PAT is needed — the release is published with the workflow's own `GITHUB_TOKEN`.
 
 The workflow verifies the secrets before building, so a misconfigured runner fails in
 seconds rather than after the build and notarization. See the
@@ -348,20 +348,20 @@ on the runner keychain setup.
 - **`codesign` cannot find the identity**: the cert isn't in your *login* keychain, or
   it's the wrong type. An invalid/incomplete cert won't show up in
   `security find-identity` at all.
-- **Notarization fails (`status: Invalid`)**: the script automatically prints the notary
+- **Notarization fails (`status: Invalid`)** — the script automatically prints the notary
   log, which lists each offending file. Common cause: a binary that wasn't signed with
   hardened runtime.
-- **Bundled `reflect` or `reflect-capture-host` exits `Killed: 9`**: check its
+- **Bundled `reflect` or `reflect-capture-host` exits `Killed: 9`** — check its
   entitlements with `codesign -d --entitlements :- Reflect.app/Contents/MacOS/reflect`.
   Sidecars must not carry the app's restricted iCloud entitlements; the release verifier
   launches both sidecars to catch this.
-- **Intel sidecar launch fails on Apple Silicon with `Bad CPU type in executable`**:
+- **Intel sidecar launch fails on Apple Silicon with `Bad CPU type in executable`** —
   install Rosetta (`softwareupdate --install-rosetta`) or verify the Intel target on an
   Intel runner. A universal build launches the Intel slice of each sidecar too, so it
   needs Rosetta as well.
-- **`rejected, source=Unnotarized Developer ID`**: signing worked but the artifact has no
+- **`rejected, source=Unnotarized Developer ID`** — signing worked but the artifact has no
   notarization ticket; rerun without `--no-notarize`.
-- **Notarization hangs**: Apple's service occasionally queues submissions for a long
+- **Notarization hangs** — Apple's service occasionally queues submissions for a long
   time; check status with `xcrun notarytool history --apple-id <id> --team-id <team>`.
 
 ## Current limitations
