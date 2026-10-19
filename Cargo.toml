@@ -120,3 +120,9 @@ walkdir = "2.5.0"
 windows-native-keyring-store = "1.1.0"
 xattr = "1.6.1"
 zip = { version = "9.0.5", default-features = false }
+
+[profile.release]
+# One codegen unit lets LLVM optimize each crate as a whole: about 10% smaller
+# downloads, for slower release builds. Set CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
+# for faster local release builds.
+codegen-units = 1
