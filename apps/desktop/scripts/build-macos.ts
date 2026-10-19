@@ -15,6 +15,7 @@ import { apply as applyMergePatch } from 'tiny-merge-patch'
 import { exec } from 'tinyexec'
 import { z } from 'zod'
 import {
+  assertSentryDsn,
   getFlavorConfigArgs,
   getFlavorOverlay,
   getHostTriple,
@@ -401,6 +402,7 @@ async function main(): Promise<void> {
       'no-sign': { type: 'boolean', default: false },
     },
   })
+  assertSentryDsn()
   const artifactDir = values['artifact-dir']
   if (values['no-sign']) {
     if (artifactDir) {

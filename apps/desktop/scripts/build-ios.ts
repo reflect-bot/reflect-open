@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { exec } from 'tinyexec'
 import {
+  assertSentryDsn,
   IOS_ARCHIVE_PATH,
   IOS_IPA_PATH,
   log,
@@ -21,8 +22,6 @@ import {
 
 const BUNDLE_IDENTIFIER = 'app.reflect.ios'
 const APP_GROUP = 'group.app.reflect'
-const SENTRY_DSN_PATTERN =
-  /^https:\/\/[0-9a-f]{32}@o463484\.ingest\.us\.sentry\.io\/4511705649971200$/
 const APP_BINARY_PATH = join(IOS_ARCHIVE_PATH, 'Products', 'Applications', 'Reflect.app', 'Reflect')
 const DSYM_BINARY_PATH = join(
   IOS_ARCHIVE_PATH,
@@ -33,14 +32,6 @@ const DSYM_BINARY_PATH = join(
   'DWARF',
   'Reflect',
 )
-
-/** Official builds must report to the production Sentry project or not at all. */
-function assertSentryDsn(): void {
-  const dsn = process.env.VITE_SENTRY_DSN
-  if (dsn && !SENTRY_DSN_PATTERN.test(dsn)) {
-    throw new Error('VITE_SENTRY_DSN is not the production Reflect Sentry project')
-  }
-}
 
 async function readInfoValue(app: string, key: string): Promise<string> {
   const args = ['-extract', key, 'raw', '-o', '-', join(app, 'Info.plist')]

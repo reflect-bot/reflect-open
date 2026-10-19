@@ -25,6 +25,8 @@ export const IOS_IPA_PATH = join(IOS_BUILD_DIR, 'arm64', 'Reflect.ipa')
 export const INHERIT = { throwOnError: true, nodeOptions: { stdio: 'inherit' } } as const
 
 const BETA_OVERLAY = 'tauri.beta.conf.json'
+const SENTRY_DSN_PATTERN =
+  /^https:\/\/[0-9a-f]{32}@o463484\.ingest\.us\.sentry\.io\/4511705649971200$/
 const PackageJsonSchema = z.object({ version: z.string().min(1) })
 
 export function log(message: string): void {
@@ -62,6 +64,14 @@ export function exportArtifacts(paths: readonly string[], artifactDir: string): 
     if (existsSync(path)) {
       copyFileSync(path, join(artifactDir, basename(path).replaceAll(' ', '.')))
     }
+  }
+}
+
+/** Official builds must report to the production Sentry project or not at all. */
+export function assertSentryDsn(): void {
+  const dsn = process.env.VITE_SENTRY_DSN
+  if (dsn && !SENTRY_DSN_PATTERN.test(dsn)) {
+    throw new Error('VITE_SENTRY_DSN is not the production Reflect Sentry project')
   }
 }
 
