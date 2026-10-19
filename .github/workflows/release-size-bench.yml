@@ -20,11 +20,11 @@ env:
   # The master commit this branch starts from: the "base" config.
   BASE_SHA: f6be8d0d86aa0a96175f65782dd1f3355a5e994f
   # A new round name starts every job from an empty cargo cache.
-  BENCH_ROUND: r1
+  BENCH_ROUND: r2
   # The targets of this batch. One batch must fit in the repository cache.
-  BENCH_TARGETS: linux-x64 linux-arm64
+  BENCH_TARGETS: macos-arm64 macos-universal
   # Earlier bench runs that the summary reports again.
-  BENCH_RUN_IDS: 39222028084 39225779940
+  BENCH_RUN_IDS: ""
 
 defaults:
   run:
