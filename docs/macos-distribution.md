@@ -367,7 +367,7 @@ copy for 90 days.
 5. Symbolicate:
 
    ```bash
-   atos -o <triple>/reflect-open.dSYM -arch <arch> -l <base> <address>...
+   atos -o <triple>/reflect-open.dSYM/Contents/Resources/DWARF/reflect-open -arch <arch> -l <base> <address>...
    ```
 
    Rust names are mangled. Pipe the output through `rustfilt`
