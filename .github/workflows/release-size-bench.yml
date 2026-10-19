@@ -22,9 +22,9 @@ env:
   # A new round name starts every job from an empty cargo cache.
   BENCH_ROUND: r2
   # The targets of this batch. One batch must fit in the repository cache.
-  BENCH_TARGETS: ios windows
+  BENCH_TARGETS: linux-x64 linux-arm64
   # Earlier bench runs that the summary reports again.
-  BENCH_RUN_IDS: ''
+  BENCH_RUN_IDS: 39222028084 39225779940 39231257960 39234857256 39239578845
 
 defaults:
   run:
