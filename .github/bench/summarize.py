@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # TEMPORARY (release size bench): merges every attempt of this run into tables.
-import glob
+# A re-run hides the artifacts of earlier attempts, so the measurements come
+# from the job logs, which every attempt keeps.
 import json
 import os
 import subprocess
@@ -16,6 +17,15 @@ CONFIGS = ("base", "new")
 def gh(path):
     args = ["gh", "api", "--paginate", "--slurp", path]
     return json.loads(subprocess.run(args, check=True, capture_output=True, text=True).stdout)
+
+
+def read_measure(attempt, job_id):
+    args = ["gh", "run", "view", RUN_ID, "--repo", REPO, "--attempt", str(attempt), "--log", "--job", str(job_id)]
+    log = subprocess.run(args, check=True, capture_output=True, text=True).stdout
+    # Each line is "<job>\t<step>\t<timestamp> <text>". measure.sh prints the JSON last.
+    lines = [line.split("\t", 2)[2].split(" ", 1)[-1] for line in log.splitlines() if line.count("\t") >= 2 and line.split("\t")[1] == "Measure"]
+    start = max((i for i, line in enumerate(lines) if line == "{"), default=None)
+    return {} if start is None else json.loads("\n".join(lines[start:]))
 
 
 def seconds(item):
@@ -67,11 +77,8 @@ for attempt in range(1, ATTEMPTS + 1):
                 ),
                 "job_s": seconds(job),
             }
-
-for path in glob.glob(os.path.join(os.environ["BENCH_DIR"], "*.json")):
-    with open(path) as file:
-        measure = json.load(file)
-    rows.setdefault((measure["target"], measure["config"], measure["attempt"]), {}).update(measure)
+            if job["conclusion"] == "success":
+                rows[(target, config, attempt)].update(read_measure(attempt, job["id"]))
 
 targets = sorted({target for target, _, _ in rows})
 lines = [
@@ -120,3 +127,4 @@ with open("summary.json", "w") as file:
     json.dump({"round": ROUND, "rows": entries}, file, indent=2)
 with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as file:
     file.write(report)
+print(report)
