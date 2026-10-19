@@ -107,7 +107,10 @@ const PLATFORMS = [
 ]
 
 const links = INSTALLERS.filter((item) => assetNames.includes(item.file)).map(
-  ({ file, ...item }) => ({ ...item, url: `https://github.com/${repo}/releases/download/${tag}/${file}` }),
+  ({ file, ...item }) => ({
+    ...item,
+    url: `https://github.com/${repo}/releases/download/${tag}/${file}`,
+  }),
 )
 if (links.length === 0) {
   fail(
