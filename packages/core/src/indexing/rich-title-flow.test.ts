@@ -62,7 +62,10 @@ describe('rich title flow', () => {
       // the Create row.
       expect(result.suggestions).toMatchObject([
         { path: 'notes/plain.md', insertText: 'Meeting with Ada' },
-        { path: 'notes/meeting-with-ada.md', insertText: 'notes/meeting-with-ada' },
+        {
+          path: 'notes/meeting-with-ada.md',
+          insertText: 'notes/meeting-with-ada|Meeting with Ada',
+        },
       ])
       expect(result.claimedTargetKeys).toContain('meeting with ada')
       await expect(index.wikiResolver.resolveWikiTarget('Meeting with Ada')).resolves.toEqual({
@@ -149,7 +152,32 @@ describe('path-address fallback flow', () => {
     const index = connectIndex(database)
     try {
       const { suggestions } = await index.suggestions.suggestWikiLinkTargets('plan')
-      expect(suggestions.map((row) => row.insertText).sort()).toEqual(['a/Plan', 'b/Plan'])
+      expect(suggestions.map((row) => row.insertText).sort()).toEqual([
+        'a/Plan|Plan',
+        'b/Plan|Plan',
+      ])
+      await Promise.all(
+        suggestions.map((suggestion) => expectSuggestionOpensItsPath(index, suggestion)),
+      )
+    } finally {
+      disconnectIndex(database)
+    }
+  })
+
+  it('shows the title when a duplicate-titled note is addressed by its alias', async () => {
+    const database = createNodeTestDatabaseService()
+    const base = 'capture-2026-10-11-220303-087-28d5'
+    database.applyProjection(
+      project(`notes/${base}.md`, `---\naliases: [${base}]\n---\n\n# Crone\n`, 20),
+    )
+    database.applyProjection(project('notes/crone.md', '# Crone\n', 10))
+    const index = connectIndex(database)
+    try {
+      const { suggestions } = await index.suggestions.suggestWikiLinkTargets('crone')
+      expect(suggestions.map((row) => row.insertText)).toEqual([
+        `${base}|Crone`,
+        'notes/crone|Crone',
+      ])
       await Promise.all(
         suggestions.map((suggestion) => expectSuggestionOpensItsPath(index, suggestion)),
       )
@@ -183,7 +211,7 @@ describe('path-address fallback flow', () => {
       // `#` reads as a fragment separator in every wiki consumer, so the
       // hash-named duplicate cannot be inserted; neither can the loose-slash
       // path; the clean sibling still can.
-      expect(suggestions.map((row) => row.insertText)).toEqual(['notes/plan'])
+      expect(suggestions.map((row) => row.insertText)).toEqual(['notes/plan|Plan'])
     } finally {
       disconnectIndex(database)
     }

@@ -37,7 +37,7 @@ describe('getWikiAddressForPath', () => {
     ).resolves.toMatchObject({
       path: 'notes/ada.md',
       alias: 'Augusta Ada King',
-      insertText: 'Augusta Ada King',
+      insertText: 'Augusta Ada King|Ada Lovelace',
     })
   })
 

@@ -137,14 +137,25 @@ async function winningAliasesByPath(
  * stays reachable through search and Markdown hrefs but cannot be inserted
  * from the `[[` menu.
  */
-function pathQualifiedInsert(path: string): string | null {
+function pathQualifiedInsert(path: string, candidate: WikiSuggestion): string | null {
   const target = path.replace(/\.md$/, '')
   const qualified = target.includes('/') ? target : `/${target}`
   const reduced = wikiNoteReference(qualified)
   if ((reduced?.kind !== 'path' && reduced?.kind !== 'pathOrKey') || reduced.path !== path) {
     return null
   }
-  return serializeWikiSuggestionAddress(qualified, null)
+  return fallbackInsert(qualified, candidate)
+}
+
+/**
+ * Serialize a fallback address with the note's ranked spelling as its display
+ * text, or bare when that spelling cannot ride along.
+ */
+function fallbackInsert(address: string, candidate: WikiSuggestion): string | null {
+  return (
+    serializeWikiSuggestionAddress(address, candidate.alias ?? candidate.target) ??
+    serializeWikiSuggestionAddress(address, null)
+  )
 }
 
 export async function verifyWikiSuggestionAddresses(
@@ -228,7 +239,7 @@ export async function verifyWikiSuggestionAddresses(
       } else {
         let rescued = false
         for (const alias of rescueAliases.get(candidate.path) ?? []) {
-          const insertText = serializeWikiSuggestionAddress(alias, null)
+          const insertText = fallbackInsert(alias, candidate)
           if (insertText !== null) {
             verified.push({ ...candidate, alias, insertText })
             rescued = true
@@ -236,7 +247,7 @@ export async function verifyWikiSuggestionAddresses(
           }
         }
         if (!rescued) {
-          const pathInsert = pathQualifiedInsert(candidate.path)
+          const pathInsert = pathQualifiedInsert(candidate.path, candidate)
           if (pathInsert !== null) {
             verified.push({ ...candidate, insertText: pathInsert })
           }
